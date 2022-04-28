@@ -4,12 +4,15 @@
 #include <iostream>
 #include <iomanip>
 #include <math.h>
-
+#include <stdio.h>
+#include <time.h>
+#include <chrono>
 
 
 
 double PI = 3.14159265359;
 
+static int d = 10;
 
 cv::Mat img;
 cv::Mat Processed;
@@ -111,7 +114,7 @@ float b_far1 = 47.6737;
 float j_ref_near1 = 50;
 float j_ref_far1 = 100;
 
-int batas1 = 77; //if the camera's viewing angle is 49.2 degrees limit value1 : 77 || if the camera's viewing angle is 47.2 degrees, the limit value is 1: 58
+int limit = 77; //if the camera's viewing angle is 49.2 degrees limit value1 : 77 || if the camera's viewing angle is 47.2 degrees, the limit value is 1: 58
 
 float a_near2 = 0.046262;
 float b_near2 = 47.6737;
@@ -136,7 +139,7 @@ float b_near4 = 22.4401;
 float a_far4 = 0.0389122;
 float b_far4 = 20.1244;
 float j_ref_near4 = 200;
-float j_ref_near4 = 250;
+float j_ref_far4 = 250;
 
 int batas4 = 17; //if the camera angle of view is 49.2 degrees limit value4 : 17 || if the camera angle of view is 47.2 degrees limit value4 : 0
 
@@ -152,6 +155,7 @@ class calculation
 {
 
 public:
+	float difference;
 
 	float theRadian(float x, float y) {
 		float R = sqrt((pow((x - 160), 2)) + (pow((y - 120), 2)));
@@ -170,6 +174,7 @@ public:
 
 	float distance(float num, float d_near, float d_far, float jr_near, float jr_far) {
 		float dist = (((jr_far - jr_near) * (num - d_near)) / (d_far - d_near)) + jr_near;
+		difference = dist;
 		return dist;
 	};
 
@@ -178,6 +183,7 @@ public:
 		return theCorner;
 	}
 };
+
 
 std::vector<std::vector<int>> findColor(cv::Mat img)
 {
@@ -209,32 +215,47 @@ void drawOnCanvas(std::vector<std::vector<int>> newPoints, std::vector<cv::Scala
 }
 
 
-void main() {
+int main() {
+	static int d = 10;
 	calculation count;
 	cv::VideoCapture cap(0);
 	cap.set((640, 200), 320);
 	cap.set((640, 200), 240);
 
-	cv::namedWindow("MORPH", (640, 200));
-	cv::createTrackbar("morph_pixel", "MORPH", &morph_pixel, 20);
+	if (cap.isOpened() == false)
+	{
+		std::cout << "error: Webcam not accessed successfully\n\n";
+		return(0);
+	}
 
-	cv::namedWindow("ColorField", (640, 200));
-	cv::createTrackbar("Y1", "ColorField", &Y1, 255);
-	cv::createTrackbar("Cr1", "ColorField", &Cr1, 255);
-	cv::createTrackbar("Cb1", "ColorField", &Cb1, 255);
-	cv::createTrackbar("Y2", "ColorField", &Y2, 255);
-	cv::createTrackbar("Cr2", "ColorField", &Cr2, 255);
-	cv::createTrackbar("Cb2", "ColorField", &Cb2, 255);
-
-	cv::namedWindow("Circle", 640);
-	cv::createTrackbar("acc_res", "Circle", &acc_res, 255);
-	cv::createTrackbar("min_dis", "Circle", &min_dis, 255);
-	cv::createTrackbar("high_thres", "Circle", &high_thres, 255);
-	cv::createTrackbar("low_thres", "Circle", &low_thres, 255);
-	cv::createTrackbar("min_rad", "Circle", &min_rad, 255);
-	cv::createTrackbar("max_rad", "Circle", &max_rad, 1000);
 	while (true && cap.isOpened()) {
 
+		cv::namedWindow("MORPH", (640, 200));
+		cv::createTrackbar("morph_pixel", "MORPH", &morph_pixel, 20);
+
+		cv::namedWindow("ColorField", (640, 200));
+		cv::createTrackbar("Y1", "ColorField", &Y1, 255);
+		cv::createTrackbar("Cr1", "ColorField", &Cr1, 255);
+		cv::createTrackbar("Cb1", "ColorField", &Cb1, 255);
+		cv::createTrackbar("Y2", "ColorField", &Y2, 255);
+		cv::createTrackbar("Cr2", "ColorField", &Cr2, 255);
+		cv::createTrackbar("Cb2", "ColorField", &Cb2, 255);
+
+		cv::namedWindow("Circle", 640);
+		cv::createTrackbar("acc_res", "Circle", &acc_res, 255);
+		cv::createTrackbar("min_dis", "Circle", &min_dis, 255);
+		cv::createTrackbar("high_thres", "Circle", &high_thres, 255);
+		cv::createTrackbar("low_thres", "Circle", &low_thres, 255);
+		cv::createTrackbar("min_rad", "Circle", &min_rad, 255);
+		cv::createTrackbar("max_rad", "Circle", &max_rad, 1000);
+
+		while (charCheckForEscKey != 27 && cap.isOpened()) {
+			bool blnFrameReadSuccessfully = cap.read(matOriginal);
+
+			if (!blnFrameReadSuccessfully || matOriginal.empty()) {
+				std::cout << "error: frame not read from webcam\n";
+				break;
+			}
 		cap.read(img);
 		newPoints = findColor(img);
 		drawOnCanvas(newPoints, ColorTrailValues);
@@ -251,7 +272,7 @@ void main() {
 		dilate(matProcessed, matProcessed, cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(morph_pixel, morph_pixel)));
 
 		HoughCircles(matProcessed, v3fCircles, 3, acc_res, min_dis, high_thres, low_thres, min_rad, max_rad);
-
+		
 		for (int i = 0; i < v3fCircles.size(); i++) 
 		{
 
@@ -263,13 +284,13 @@ void main() {
 			circle(matOriginal, cv::Point(x_center, y_center), (int)v3fCircles[i][2], cv::Scalar(0, 0, 255), 2);
 			// line(matOriginal, Point(160, 240), Point(x_center, y_center), Scalar(0, 255, 0), 2, CV_AA);
 
-			if (y_center >= batas1) {
+			if (y_center >= limit) {
 				R = count.theRadian(x_center, y_center);
 				d_near = count.near(a_near1, b_near1, R);
 				d_far = count.far(a_far1, b_far1, R);
 				theDistance = count.distance(Diameter, d_near, d_far, j_ref_near1, j_ref_far1);
 			}
-			else if (y_center < batas1 && y_center >= batas2) {
+			else if (y_center < limit && y_center >= batas2) {
 				R = count.theRadian(x_center, y_center);
 				d_near = count.near(a_near2, b_near2, R);
 				d_far = count.far(a_far2, b_far2, R);
@@ -342,8 +363,9 @@ void main() {
 			putText(matOriginal, "corner ", cv::Point(230, 210), cv::FONT_HERSHEY_PLAIN, .7, cv::Scalar(0, 0, 0), 1, 4, false);
 			putText(matOriginal, S_Corner, cv::Point(270, 210), cv::FONT_HERSHEY_PLAIN, .7, cv::Scalar(255, 255, 255), 1, 4, false);
 
-		}
 
+		}
+		
 		// line(matOriginal, Point(160, 240), Point(160, 0), Scalar(0, 0, 0), 1, CV_AA);
 		imshow("tresh", matProcessed);
 		imshow("OUTPUT", matOriginal);
@@ -355,10 +377,42 @@ void main() {
 			<< "\t  CORNER= " << S_Corner
 			<< std::endl;
 
+		
 		charCheckForEscKey = cv::waitKey(1);
+		
+		int theDifference;
+		
+
+			// this is to keep track of the fishes over all distance travled on the Z axis
+			int alter;
+			for (;;)
+			{
+				//std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				if (theDistance > d)
+				{
+					theDifference = (theDistance - d);
+						std::cout << theDifference;
+						alter = theDifference;
+					break;
+				}
+				else if (theDistance < d)
+				{
+					theDifference = (d - theDistance);
+						std::cout << d;
+						alter = d;
+					break;
+				}
+				alter += alter;
+		
+				break;
+
+			}
+			std::cout << "distance traveled: " << alter;
+		
+		
 	}
 	//return(0);
 	
+	}
 }
-
 
